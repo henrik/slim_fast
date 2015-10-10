@@ -1,9 +1,9 @@
 defmodule SlimFast.Compiler do
   @self_closing [:area, :br, :col, :doctype, :embed, :hr, :img, :input, :link, :meta]
 
-  def compile(tree) do
+  def compile(tree, skip_content_whitespace? \\ false) do
     tree
-    |> Enum.map(fn branch -> render_branch(branch) end)
+    |> Enum.map(fn branch -> render_branch(branch, skip_content_whitespace?) end)
     |> Enum.join
   end
 
@@ -29,26 +29,29 @@ defmodule SlimFast.Compiler do
     ~s( #{to_string(name)}="#{value}")
   end
 
-  defp render_branch(%{type: :doctype, content: text}), do: text
-  defp render_branch(%{type: :text, content: text}), do: text
-  defp render_branch(%{} = branch) do
+  defp render_branch(%{type: :doctype, content: text}, _), do: text
+  defp render_branch(%{type: :text, content: text}, _), do: text
+  defp render_branch(%{} = branch, skip_content_whitespace?) do
+    skip_content_whitespace? = skip_content_whitespace? || (branch.type == :textarea)
+
     opening = branch.attributes
               |> Enum.map(fn {k, v} -> render_attribute(k, v) end)
               |> Enum.join
-              |> open(branch)
+              |> open(branch, skip_content_whitespace?)
 
     closing = close(branch)
-    opening <> compile(branch.children) <> closing
+    opening <> compile(branch.children, skip_content_whitespace?) <> closing
   end
 
-  defp open(_, %{type: :eex, content: code, attributes: attrs}) do
+  defp open(_, %{type: :eex, content: code, attributes: attrs}, skip_content_whitespace?) do
     inline = if attrs[:inline], do: "=", else: ""
-    "<%#{inline} #{code} %>\n"
+    space = if skip_content_whitespace?, do: "", else: "\n"
+    "<%#{inline} #{code} %>#{space}"
   end
 
-  defp open(_, %{type: :html_comment}), do: "<!--"
-  defp open(_, %{type: :ie_comment, content: conditions}), do: "<!--[#{conditions}]>"
-  defp open(attrs, %{type: type, spaces: spaces}) do
+  defp open(_, %{type: :html_comment}, _), do: "<!--"
+  defp open(_, %{type: :ie_comment, content: conditions}, _), do: "<!--[#{conditions}]>"
+  defp open(attrs, %{type: type, spaces: spaces}, _) do
     "#{if spaces[:leading], do: " "}<#{String.rstrip("#{type}#{attrs}")}>"
   end
 

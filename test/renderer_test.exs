@@ -273,4 +273,12 @@ defmodule RendererTest do
     assert render(~s(a< href="test" text)) == ~s( <a href="test">text</a>)
     assert render(~s(a<> href="test" text)) == ~s( <a href="test">text</a> )
   end
+
+  test "does not add linebreaks to textarea with '=' output" do
+    slim = ~s"""
+    textarea = "foo"
+    """
+
+    assert render(slim) == ~s(<textarea>foo</textarea>)
+  end
 end
